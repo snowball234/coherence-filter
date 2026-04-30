@@ -1,0 +1,224 @@
+import Mathlib
+
+/-!
+# Topological Genesis and the Superposition Singularity
+
+A Lean 4 formalization of the core framework from the Topological Genesis proposal.
+
+## Overview
+
+This file formalizes three key ideas:
+1. **PreCrystallizationState**: A state where all elements are identified (everywhere AND nowhere).
+   This is contradictory for any nonempty type — only the void (Empty type) is consistent.
+2. **PostCrystallizationState**: A state with discernment and topological invariants (Betti numbers).
+3. **EventHorizon**: A phase transition between description regimes.
+
+## Key Theorems
+- `preCrystallization_contradictory`: The pre-crystallization state is contradictory for nonempty types.
+- `preCrystallization_only_empty`: Only the Empty type admits a PreCrystallizationState.
+- `void_xor_deterministic`: Void (b₂ = 1) and deterministic (b₂ = 0) cannot coexist.
+- `topological_anthropic_principle`: If observers exist (requiring possibility/the void),
+  the universe cannot be purely deterministic.
+-/
+
+set_option maxHeartbeats 400000
+
+open Set
+
+/-! ## Pre-Crystallization State -/
+
+/-- A pre-crystallization state: a state where all elements are identified (no discernment),
+    and every element is simultaneously everywhere and nowhere. -/
+structure PreCrystallizationState (α : Type*) where
+  carrier : Set α
+  /-- No discernment: all elements in the carrier are identified -/
+  no_discernment : ∀ x y : α, x ∈ carrier → y ∈ carrier → x = y
+  /-- Every element is in the carrier -/
+  everywhere : ∀ x : α, x ∈ carrier
+  /-- No element is in the carrier -/
+  nowhere : ∀ x : α, x ∉ carrier
+
+/-
+The pre-crystallization state is contradictory for any nonempty type.
+    If α has at least one element, the `everywhere` and `nowhere` axioms
+    directly contradict each other. This is the formal content of
+    "superposition cannot be described using classical logic."
+-/
+theorem preCrystallization_contradictory {α : Type*} [Nonempty α]
+    (S : PreCrystallizationState α) : False := by
+  exact S.nowhere ( Classical.arbitrary α ) ( S.everywhere _ )
+
+/-
+A PreCrystallizationState can only exist for the Empty type.
+    This formalizes: "The only consistent pre-crystallization state is the void."
+-/
+theorem preCrystallization_only_empty (α : Type*) (S : PreCrystallizationState α) :
+    IsEmpty α := by
+  exact ⟨ fun x => S.nowhere x ( S.everywhere x ) ⟩
+
+/-! ## Post-Crystallization State -/
+
+/-- A post-crystallization state: a state with discernment (at least two distinct elements)
+    and topological invariants encoded as Betti numbers. -/
+structure PostCrystallizationState (α : Type*) where
+  /-- The carrier set of the crystallized state -/
+  carrier : Set α
+  /-- At least two distinct elements exist (discernment) -/
+  discernment : ∃ x y : α, x ∈ carrier ∧ y ∈ carrier ∧ x ≠ y
+  /-- The second Betti number, encoding the topological invariant of the state.
+      b₂ = 1 represents the void (memory of un-collapsed potential).
+      b₂ = 0 represents full determinism. -/
+  b₂ : ℕ
+
+/-- The void condition: b₂ = 1, indicating the presence of a 2-dimensional hole
+    in the constraint network. -/
+def isVoid {α : Type*} (u : PostCrystallizationState α) : Prop :=
+  u.b₂ = 1
+
+/-- The deterministic condition: b₂ = 0, indicating full collapse with no
+    remaining topological freedom. -/
+def isDeterministic {α : Type*} (u : PostCrystallizationState α) : Prop :=
+  u.b₂ = 0
+
+/-
+Void and deterministic are mutually exclusive: a state cannot simultaneously
+    have b₂ = 1 and b₂ = 0. This is a core structural result of the framework.
+-/
+theorem void_xor_deterministic {α : Type*} (u : PostCrystallizationState α) :
+    ¬(isVoid u ∧ isDeterministic u) := by
+  unfold isVoid isDeterministic; aesop;
+
+/-! ## Event Horizon -/
+
+/-- An event horizon is a phase transition between description regimes.
+    It is not a spatial or temporal boundary, but a transition from
+    pre-crystallization (no discernment) to post-crystallization (discernment). -/
+structure EventHorizon (α : Type*) where
+  /-- The post-crystallization state that emerges after the transition -/
+  post : PostCrystallizationState α
+  /-- The transition preserves the void: b₂ = 1 in the post-crystallization state,
+      encoding the "memory" of the pre-crystallization potential -/
+  void_preserved : isVoid post
+
+/-! ## The Topological Anthropic Principle -/
+
+/-- An observer structure: an entity that can distinguish between states.
+    Observers require the ability to distinguish, which requires possibility,
+    which requires the void (b₂ = 1). -/
+structure Observer (α : Type*) where
+  /-- The universe state in which the observer exists -/
+  universeState : PostCrystallizationState α
+  /-- Observers require possibility, which requires the void -/
+  requires_void : isVoid universeState
+
+/-
+The Topological Anthropic Principle: if an observer exists, the universe
+    cannot be purely deterministic. This follows directly from the fact that
+    observers require the void (b₂ = 1), which is incompatible with
+    determinism (b₂ = 0).
+-/
+theorem topological_anthropic_principle {α : Type*} (obs : Observer α) :
+    ¬isDeterministic obs.universeState := by
+  exact fun h => by have := obs.requires_void; simp_all +decide [ isDeterministic, isVoid ] ;
+
+/-! ## Born Rule as Void Geometry (Many-Worlds Patch) -/
+
+/-- A branch in the Many-Worlds interpretation, represented as a face of the void.
+    Each branch has an associated area (homology class area). -/
+structure Branch where
+  /-- The area of the homology class associated with this branch -/
+  area : ℝ
+  /-- Areas are positive -/
+  area_pos : 0 < area
+
+/-- A void geometry: the collection of all branches (faces of the void)
+    with their associated areas. The total area is the sum of all face areas. -/
+structure VoidGeometry where
+  /-- The collection of branches (faces of the void) -/
+  branches : Finset Branch
+  /-- There is at least one branch -/
+  nonempty : branches.Nonempty
+  /-- Total void area -/
+  total_area : ℝ
+  /-- Total area is the sum of branch areas -/
+  total_area_eq : total_area = branches.sum (fun b => b.area)
+  /-- Total area is positive -/
+  total_area_pos : 0 < total_area
+
+/-- The Born rule probability for a branch: the ratio of its homology class area
+    to the total void area. This is the geometric derivation of measurement
+    probability from void topology. -/
+noncomputable def born_probability (vg : VoidGeometry) (b : Branch) : ℝ :=
+  b.area / vg.total_area
+
+/-
+Born probabilities are non-negative.
+-/
+theorem born_probability_nonneg (vg : VoidGeometry) (b : Branch) :
+    0 ≤ born_probability vg b := by
+  exact div_nonneg b.area_pos.le vg.total_area_pos.le
+
+/-
+Born probabilities are at most 1 for any branch that is part of the geometry.
+-/
+theorem born_probability_le_one (vg : VoidGeometry) (b : Branch)
+    (hb : b ∈ vg.branches) :
+    born_probability vg b ≤ 1 := by
+  exact div_le_one_of_le₀ ( vg.total_area_eq ▸ Finset.single_le_sum ( fun x _ => le_of_lt x.area_pos ) hb ) ( le_of_lt vg.total_area_pos )
+
+/-
+Born probabilities sum to 1 across all branches: normalization.
+    This is the key property that makes the void geometry interpretation
+    of the Born rule mathematically consistent.
+-/
+theorem born_probability_sum_one (vg : VoidGeometry) :
+    vg.branches.sum (fun b => born_probability vg b) = 1 := by
+  unfold born_probability; rw [ ← Finset.sum_div ] ; rw [ div_eq_iff ] ; linarith [ vg.total_area_pos, vg.total_area_eq ] ;
+  linarith [ vg.total_area_pos ]
+
+/-! ## Pilot Wave: Non-Locality as Homological Necessity -/
+
+/-- A constraint network with a void structure.
+    Non-local correlations arise because the void spans the entire
+    configuration space — local perturbations affect the global topology. -/
+structure ConstraintNetwork where
+  /-- The second Betti number of the network -/
+  b₂ : ℕ
+  /-- The void exists in the network -/
+  has_void : b₂ = 1
+
+/-
+Local perturbation of a constraint network preserves the void.
+    This models the key insight: a local measurement perturbs the boundary
+    of the void, which immediately affects the entire constraint network.
+    The void cannot be locally destroyed.
+-/
+theorem void_preserved_under_local_perturbation (cn : ConstraintNetwork)
+    (cn' : ConstraintNetwork) (h_perturb : cn'.b₂ = cn.b₂) :
+    cn'.b₂ = 1 := by
+  exact h_perturb.trans cn.has_void
+
+/-! ## String Theory: Moduli Stabilization from Observer Necessity -/
+
+/-- A string state with extra dimensions and a Betti number. -/
+structure StringState where
+  /-- Number of extra dimensions -/
+  extra_dims : ℕ
+  /-- The second Betti number after compactification -/
+  b₂ : ℕ
+
+/-
+Moduli stabilization theorem: For any string state, if observers exist
+    (requiring b₂ = 1), then the state cannot fully crystallize to b₂ = 0.
+    The moduli are stabilized by the necessity of observers.
+-/
+theorem moduli_stabilization (s : StringState) (h_observer : s.b₂ = 1) :
+    s.b₂ ≠ 0 := by
+  linarith
+
+/-
+There exists a void structure that stabilizes the moduli.
+-/
+theorem exists_stabilizing_void (s : StringState) (h_observer : s.b₂ = 1) :
+    ∃ v : ConstraintNetwork, v.b₂ = s.b₂ := by
+  exact ⟨ ⟨ s.b₂, h_observer ⟩, rfl ⟩
